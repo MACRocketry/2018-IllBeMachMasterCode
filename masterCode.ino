@@ -1,8 +1,10 @@
 #include <SPI.h> //native library for serial peripheral interfacing (sd shield)
 #include <SD.h> //native library for SD reading nd writing
 #include <MacRocketry_GPS_Shield.h>  //Jerrys library for the GPS shield
+#include <LEDDiagnostics.h>  //Sttus indicator library
 
 MacRocketry_GPS_Shield gps;
+LED_Diagnostics led;
 
 void setup() {
   Serial.begin(115200); //Begin serial transmission for debugging
@@ -17,6 +19,8 @@ float diagnostics(float rocketInfo) {  //this phase will operate before we launc
   bmpData = readBMP();  //use adafruit library
   rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
   storeData(rocketInfo);  //This funct
+  
+  led.statusCheck(*Check to see if we can pass already taken data*);
   
   if (conditionToNextPhase) {
     ascentToDrogue(rocketInfo);
