@@ -8,24 +8,59 @@ void setup() {
   Serial.begin(115200); //Begin serial transmission for debugging
   Serial.println("Serial transmission successful");
   initializeSD();
-  diagnostics();
+  rocketInfo = [float array]; //static memory array initialized
+  diagnostics(rocketInfo);
 }
 
-float diagnostics() {  //this phase will operate before we launch the rocket
-  gpsAltitude = readGPS();
-  diagnostics();
-}
-
-void ascentToDrogue() {  //this phase will run up to and including laucnhing the drogue chute
+float diagnostics(float rocketInfo) {  //this phase will operate before we launch the rocket
+  gpsData = readGPS();  //use Jerrys library
+  bmpData = readBMP();  //use adafruit library
+  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
+  storeData(rocketInfo);  //This funct
   
+  if (conditionToNextPhase) {
+    ascentToDrogue(rocketInfo);
+  }
+  else {
+    diagnostics(rocketInfo);
+  }
 }
 
-void descentToMain() {  //this phase will operate starting after the deployment of the drogue up to and including the deployment of the main chute
+float ascentToDrogue(float rocketInfo) {  //this phase will run up to and including laucnhing the drogue chute
+  gpsData = readGPS();  //use Jerrys library
+  bmpData = readBMP();  //use adafruit library
+  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
+  storeData(rocketInfo);
   
+  if (conditionToNextPhase) {
+    deployDrogue();
+    descentToMain(rocketInfo);
+  }
+  else {
+    ascentToDrogue(rocketInfo);
+  }
 }
 
-void descent() {  //this phase ill run after the chutes have been deployed and until the rocket lands
+void descentToMain(float rocketInfo) {  //this phase will operate starting after the deployment of the drogue up to and including the deployment of the main chute
+  gpsData = readGPS();  //use Jerrys library
+  bmpData = readBMP();  //use adafruit library
+  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
+  storeData(rocketInfo);
   
+  if (conditionToNextPhase) {
+    deployMain();
+    descent(rocketInfo);
+  }
+  else {
+    descentToMain(rocketInfo);
+  }
+}
+
+void descent(float rocketInfo) {  //this phase ill run after the chutes have been deployed and until the rocket lands
+  gpsData = readGPS();  //use Jerrys library
+  bmpData = readBMP();  //use adafruit library
+  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
+  storeData(rocketInfo);
 }
 
 void initializeSD() {
