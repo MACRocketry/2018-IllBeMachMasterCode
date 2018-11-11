@@ -1,7 +1,7 @@
 #include <SPI.h> //native library for serial peripheral interfacing (sd shield)
 #include <SD.h> //native library for SD reading nd writing
 #include <MacRocketry_GPS_Shield.h>  //Jerrys library for the GPS shield
-#include <LEDDiagnostics.h>  //Sttus indicator library
+#include <LED_Diagnostics.h>  //Sttus indicator library
 
 MacRocketry_GPS_Shield gps;
 LED_Diagnostics led;
@@ -9,7 +9,9 @@ LED_Diagnostics led;
 void setup() {
   Serial.begin(115200); //Begin serial transmission for debugging
   Serial.println("Serial transmission successful");
+  
   initializeSD();
+  
   rocketInfo = [float array]; //static memory array initialized
   diagnostics(rocketInfo);
 }
