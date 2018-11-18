@@ -49,7 +49,7 @@ void stateMachine(int state) {
       }
     }
     
-    else if (state == 2) {  //descentToGround
+    else if (state == 4) {  //descentToGround
       rocketInfo = descentToGround(rocketInfo);
       if (condition for next state) {
         state++;
