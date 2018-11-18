@@ -31,29 +31,26 @@ void stateMachine(int state) {
     if (state == 1) {  //diagnostics stage
       rocketInfo = diagnostics(rocketInfo);
       if (condition for next state) {
-        state++;
+        state = 2;
       }
     }
     
     else if (state == 2) {  //ascentToDrogue stage
       rocketInfo = ascentToDrogue(rocketInfo);
       if (condition for next state) {
-        state++;
+        state = 3;
       }
     }
     
     else if (state == 3) {  //descentToMain
       rocketInfo = descentToMain(rocketInfo);
       if (condition for next state) {
-        state++;
+        state = 4;
       }
     }
     
     else if (state == 4) {  //descentToGround
       rocketInfo = descentToGround(rocketInfo);
-      if (condition for next state) {
-        state++;
-      }
     }
   }
 }
