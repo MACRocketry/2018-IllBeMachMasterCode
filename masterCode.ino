@@ -2,7 +2,14 @@
 #include <SD.h> //native library for SD reading nd writing
 #include <MacRocketry_GPS_Shield.h>  //Jerrys library for the GPS shield
 #include <LED_Diagnostics.h>  //Sttus indicator library
+#include <MacRocketry_SD_Logger.h> //SD Logger library
+#include <Wire.h>  //OneWire library and Adafruit libraries for the BMP085 sensor.
+#include <Adafruit_Sensor.h>
+#include <Adafruit_BMP085_U.h>
 
+
+MacRocketry_SD_Logger logger;
+Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(12345);
 MacRocketry_GPS_Shield gps;
 LED_Diagnostics led;
 
@@ -10,6 +17,7 @@ void setup() {
   Serial.begin(115200); //Begin serial transmission for debugging
   Serial.println("Serial transmission successful");
   
+  initializeSensors();
   initializeSD();
   
   rocketInfo = [float array]; //static memory array initialized
@@ -69,10 +77,26 @@ void descent(float rocketInfo) {  //this phase ill run after the chutes have bee
   storeData(rocketInfo);
 }
 
-void initializeSD() {
+bool initializeSD() {
   //create a file and open
   //prep the SD card so that we do not have to continously open and close files
   //this should only run once
+  logger = MacRocketry_SD_Logger();
+  if(logger.connectFile == NULL)
+  {
+    Serial.println("Failed to open log file!");
+    return false;
+  }
+}
+
+//Function to be called once at the start to initialize any onboard sensors
+//Returns boolean false if any initializations fail. (SUBJECT TO CHANGE)
+bool initializeSensors() {
+  bool success = true;
+  //Begin BMP sensor
+  if (!bmp.begin())
+    success = false;
+  return success;
 }
 
 float gpsReadAndWrite() {
@@ -85,4 +109,12 @@ float gpsReadAndWrite() {
     Serial.print(" Altitude ");
     Serial.println(gps.altitude); //acess altitude [float]
   }
+}
+
+//Grabs pressure data from the BMP sensor
+float readBMP()
+{
+  float pressure = 0;
+  bmp.getPressure(&pressure);
+  return pressure;
 }
