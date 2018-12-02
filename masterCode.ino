@@ -8,6 +8,8 @@
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BMP085_U.h>
 
+//Jay is the best!
+
 //Initialzie objects here
 MacRocketry_SD_Logger logger;  
 Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(12345);
