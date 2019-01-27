@@ -14,6 +14,23 @@ Adafruit_BMP085_Unified bmp = Adafruit_BMP085_Unified(12345);
 MacRocketry_GPS_Shield gps;
 LED_Diagnostics led;
 
+// In this section are constants used to determine flight stages
+#define MINh	5
+#define MAINh	8900
+
+#define MINt	60
+#define DROt	5
+#define MAXt	600
+
+#define NEGv	-5
+#define MINv	5 
+// In this section are constants used to determine flight stages
+
+enum rocket_state { preflight, flight, drogue, main, landed };
+enum rocket_state current_state;
+
+current_state = preflight;
+
 void setup() {
   Serial.begin(115200); //Begin serial transmission for debugging
   Serial.println("Serial transmission successful");
@@ -24,71 +41,12 @@ void setup() {
   state = 1;
   stateMachine(state);
 }
-
-void stateMachine(int state) {
-  rocketInfo = [float array]; //static memory array initialized
-  while (True) {
-    if (state == 1) {  //diagnostics stage
-      rocketInfo = diagnostics(rocketInfo);
-      if (condition for next state) {
-        state = 2;
-      }
-    }
-    
-    else if (state == 2) {  //ascentToDrogue stage
-      rocketInfo = ascentToDrogue(rocketInfo);
-      if (condition for next state) {
-        state = 3;
-      }
-    }
-    
-    else if (state == 3) {  //descentToMain
-      rocketInfo = descentToMain(rocketInfo);
-      if (condition for next state) {
-        state = 4;
-      }
-    }
-    
-    else if (state == 4) {  //descentToGround
-      rocketInfo = descentToGround(rocketInfo);
-    }
-  }
-}
-
+//This is currently placeholder for the data reading object
 float diagnostics(float rocketInfo) {  //this phase will operate before we launch the rocket
   gpsData = readGPS();  //use Jerrys library
   bmpData = readBMP();  //use adafruit library
   rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
   storeData(rocketInfo);  //This funct
-  
-  led.statusCheck(*Check to see if we can pass already taken data*);
-  
-  return rocketInfo;
-}
-
-float ascentToDrogue(float rocketInfo) {  //this phase will run up to and including laucnhing the drogue chute
-  gpsData = readGPS();  //use Jerrys library
-  bmpData = readBMP();  //use adafruit library
-  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
-  storeData(rocketInfo);
-  
-  return rocketInfo;
-}
-
-void descentToMain(float rocketInfo) {  //this phase will operate starting after the deployment of the drogue up to and including the deployment of the main chute
-  gpsData = readGPS();  //use Jerrys library
-  bmpData = readBMP();  //use adafruit library
-  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
-  storeData(rocketInfo);
-  
-  return rocketInfo;
-}
-
-void descentToGround(float rocketInfo) {  //this phase ill run after the chutes have been deployed and until the rocket lands
-  gpsData = readGPS();  //use Jerrys library
-  bmpData = readBMP();  //use adafruit library
-  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
-  storeData(rocketInfo);
   
   return rocketInfo;
 }
@@ -133,4 +91,33 @@ float readBMP()
   float pressure = 0;
   bmp.getPressure(&pressure);
   return pressure;
+}
+
+rocket_state state_machine(float flight_altitude, float flight_velocity, float flight_time) {
+	
+	switch (current_state) {
+		case preflight:
+      led.statusCheck(*Check to see if we can pass already taken data*);
+			if (flight_altitude > MINh && flight_velocity > MINv)
+				current_state = flight;
+			break;
+		case flight:
+			if (flight_velocity < NEGv && flight_time > MINt)
+				current_state = drogue;
+			break;
+    case drogue:
+      //DEPLOY DROGUE
+			if (flight_altitude < MAINh)
+				current_state = main;
+			break;
+		case main:
+      //DEPLOY MAIN
+			if (flight_altitude < MINh && flight_time > MINv)
+				current_state = landed;
+			break;
+    case landed:
+      //STOP LOGGING DATA
+      break;
+	}
+	return current_state
 }
