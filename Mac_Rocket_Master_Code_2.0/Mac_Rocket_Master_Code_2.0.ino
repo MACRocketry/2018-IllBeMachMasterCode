@@ -177,3 +177,49 @@ void setup(){
 void loop(){
   processRocketState();
 }
+
+
+/*  Here lies the conditional statements that need to be ported over
+
+#define MINh    5
+#define MAINh    8900
+
+#define MINt    60
+#define DROt    5
+#define MAXt    600
+
+#define NEGv    -5
+#define MINv    5
+
+
+void main() {
+    enum rocket_state {preflight, flight, drogue, main, landed};
+    enum rocket_state current_state;
+    float flight_altitude = 0;
+    float flight_velocity = 0;
+    float time = 0;
+
+    current_state = preflight;
+    switch (current_state) {
+        case preflight:
+            if (flight_altitude > MINh && flight_velocity > MINv)
+                current_state = flight;
+            break;
+        case flight:
+            if (flight_velocity < NEGv && flight_time > MINt)
+                current_state = drogue;
+            break;
+        case drogue:
+            if (flight_altitude < MAINh && flight_time > DROt)
+                current_state = main;
+            break;
+        case main:
+            if (flight_altitude < MINh && flight_time > MINv)
+                current_state = landed;
+            break;
+        case landed:
+            break;
+    }
+}
+*/
+
