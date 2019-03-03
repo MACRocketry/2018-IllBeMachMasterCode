@@ -4,8 +4,8 @@
 #include <Adafruit_Sensor.h>    //Adafruit sensor library needed for BMP library
 #include <Adafruit_BMP085_U.h>  //BMP180 and BMP085 use the same library
 
-//GPS library --------------------
-#include <MacRocketry_GPS_Shield.h>     //Jerry's library for the GPS shield
+//GPS library -------------------- (ALL GPS COMPONENTS COMMENTED OUT FOR NOW)
+//#include <MacRocketry_GPS_Shield.h>     //Jerry's library for the GPS shield
 
 //SD Card library --------------------
 #include <SPI.h>  //native library for serial peripheral interfacing (sd shield)
@@ -16,9 +16,12 @@
 #include <MacRocketry_LED_Indicator.h>  //Status indicator library
 
 //End of Import libraries ================================================================================
+//Definitions
+#define seaLevel 1013.25 //hPa
+
 //Start of Initialize Sensor Objects =====================================================================
 Adafruit_BMP085_Unified bmp;
-MacRocketry_GPS_Shield gps;
+//MacRocketry_GPS_Shield gps;
 MacRocketry_SD_Logger sd;
 MacRocketry_LED_Indicator led;
 
@@ -54,8 +57,7 @@ void nextRocketState(bool safeToTransition){
       case MainShoot:
         currentState = Landed;
         break;
-    }
-  }
+    }  }
 }
 
 void processRocketState(){
@@ -83,11 +85,32 @@ void processRocketState(){
 //End of Rocket State Machine functions --------------------
 //Start of Rocket State-Specific functions --------------------
 void rocketInit(){
+  SDcheck = initializeSD();
+  BMPcheck =  initialzizeBMP();
   
+  led.setStatusGPS(true);
+  
+  if (SDcheck && BMPcheck) {
+    nextRocketState(true);
+  }
 }
 
 void rocketPreflight(){
+  //Read data from BMP
+  float pressure = 0;
+  float altitude = 0;
+  float temp = 0;
+  bmpData = readBMP();
   
+  //Process and store data
+  altitude = dataAnalytics(altitude);
+  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n")
+  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n")
+  sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n")
+  
+  storeData(rocketInfo);  //PLACE HOLDER, WHAT FUNCTION STORES DATA
+  
+  led.setStatusBMP(altitude); //*********JAROD NEEDS TO LOOK*********
 }
 
 void rocketFlight(){
@@ -109,103 +132,16 @@ void rocketLanded(){
 //End of Rocket State-Specific functions --------------------
 //End of Rocket State Machine ============================================================================
 
-//setup() and loop() ================================================================================
-void setup(){
-  
-}
-
-void loop(){
-  processRocketState();
-}
-
-/*
-//Start of Setup() =======================================================================================
-void setup(){
-  Serial.begin(115200); //Begin serial communication for debugging
-  Serial.println("Start serial communication...");
-
-}
 
 
-//Start of Draft Code ====================================================================================
-void setup() {
-  Serial.begin(115200); //Begin serial communication for debugging
-  Serial.println("Start serial communication...");
-  
-  initializeSensors();
-  initializeSD();
-  
-  state = 1;
-  stateMachine(state);
-}
+//Sensor functions ===================================================
 
-
-void stateMachine(int state) {
-  rocketInfo = [float array]; //static memory array initialized
-  while (True) {
-    if (state == 1) {  //diagnostics stage
-      rocketInfo = diagnostics(rocketInfo);
-      if (condition for next state) {
-        state = 2;
-      }
-    }
-    
-    else if (state == 2) {  //ascentToDrogue stage
-      rocketInfo = ascentToDrogue(rocketInfo);
-      if (condition for next state) {
-        state = 3;
-      }
-    }
-    
-    else if (state == 3) {  //descentToMain
-      rocketInfo = descentToMain(rocketInfo);
-      if (condition for next state) {
-        state = 4;
-      }
-    }
-    
-    else if (state == 4) {  //descentToGround
-      rocketInfo = descentToGround(rocketInfo);
-    }
-  }
-}
-
-float diagnostics(float rocketInfo) {  //this phase will operate before we launch the rocket
-  gpsData = readGPS();  //use Jerrys library
-  bmpData = readBMP();  //use adafruit library
-  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
-  storeData(rocketInfo);  //This funct
-  
-  led.statusCheck(*Check to see if we can pass already taken data*);
-  
-  return rocketInfo;
-}
-
-float ascentToDrogue(float rocketInfo) {  //this phase will run up to and including laucnhing the drogue chute
-  gpsData = readGPS();  //use Jerrys library
-  bmpData = readBMP();  //use adafruit library
-  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
-  storeData(rocketInfo);
-  
-  return rocketInfo;
-}
-
-void descentToMain(float rocketInfo) {  //this phase will operate starting after the deployment of the drogue up to and including the deployment of the main chute
-  gpsData = readGPS();  //use Jerrys library
-  bmpData = readBMP();  //use adafruit library
-  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
-  storeData(rocketInfo);
-  
-  return rocketInfo;
-}
-
-void descentToGround(float rocketInfo) {  //this phase ill run after the chutes have been deployed and until the rocket lands
-  gpsData = readGPS();  //use Jerrys library
-  bmpData = readBMP();  //use adafruit library
-  rocketInfo = dataAnalytics(gpsData, bmpData);  //returns array containing p, p', v, v', a, a', along with any GPS data we want
-  storeData(rocketInfo);
-  
-  return rocketInfo;
+bool initializeBMP() {
+  bool success = true;
+  //Begin BMP sensor
+  if (!bmp.begin())
+    success = false;
+  return success;
 }
 
 bool initializeSD() {
@@ -218,36 +154,26 @@ bool initializeSD() {
     Serial.println("Failed to open log file!");
     return false;
   }
-}
-
-//Function to be called once at the start to initialize any onboard sensors
-//Returns boolean false if any initializations fail. (SUBJECT TO CHANGE)
-bool initializeSensors() {
-  bool success = true;
-  //Begin BMP sensor
-  if (!bmp.begin())
-    success = false;
-  return success;
-}
-
-float gpsReadAndWrite() {
-  if (gps.readData()){
-    Serial.print(gps.data); //access NMEA data
-    Serial.print("UTC: ");
-    Serial.print(gps.utc); //access UTC [float]
-    Serial.print(" Fix: ");
-    Serial.print(gps.fix); //acess fix [int]
-    Serial.print(" Altitude ");
-    Serial.println(gps.altitude); //acess altitude [float]
+  else{
+    return true;
   }
 }
 
-//Grabs pressure data from the BMP sensor
-float readBMP()
+float readBMP(float *pressure, float *altitude, float *temp)
 {
-  float pressure = 0;
-  bmp.getPressure(&pressure);
-  return pressure;
+  bmp.getTemperature(temp);
+  bmp.getPressure(pressure);
+  *altitude = bmp.pressureToAltitude(seaLevel, pressure/100);
 }
 
-*/
+//End of senosor functions ==============================================
+
+
+//setup() and loop() ================================================================================
+void setup(){
+  
+}
+
+void loop(){
+  processRocketState();
+}
