@@ -111,10 +111,11 @@ void rocketPreflight(){
   storeData(rocketInfo);  //PLACE HOLDER, WHAT FUNCTION STORES DATA
   
   led.setStatusBMP(altitude); //*********JAROD NEEDS TO LOOK*********
+  //nextRocketState(altitude > groundLvl && vel >> 0);
 }
 
 void rocketFlight(){
-  
+  //nextRocketState(vel < 0 && time > Min_Flight_t);  
 }
 
 void rocketDrogueShoot(){
