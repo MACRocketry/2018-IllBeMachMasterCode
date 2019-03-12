@@ -96,38 +96,111 @@ void rocketInit(){
 }
 
 void rocketPreflight(){
+  //Next state variables
+  float groundLvl = 100; //Sea level in meters
+  
   //Read data from BMP
   float pressure = 0;
   float altitude = 0;
   float temp = 0;
-  bmpData = readBMP();
+  float time = 0;
+  readBMP(&pressure, &altitude, &temp, &time);
   
   //Process and store data
-  altitude = dataAnalytics(altitude);
+  altitudeProcessed = dataAnalytics(altitude);
+  previousAltitude = altitudeProcessed;
   sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n")
   sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n")
+  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m \n")
   sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n")
-  
-  storeData(rocketInfo);  //PLACE HOLDER, WHAT FUNCTION STORES DATA
   
   led.setStatusBMP(altitude); //*********JAROD NEEDS TO LOOK*********
   //nextRocketState(altitude > groundLvl && vel >> 0);
 }
 
 void rocketFlight(){
-  //nextRocketState(vel < 0 && time > Min_Flight_t);  
+  //Next state variables
+  float minTimeToApogee = 100; //needs to be confirmed with structural
+  
+  //Read data from BMP
+  float pressure = 0;
+  float altitude = 0;
+  float temp = 0;
+  float time = 0;
+  readBMP(&pressure, &altitude, &temp, &time);
+  
+  //Process and store data
+  altitudeProcessed = dataAnalytics(altitude);
+  previousAltitude = altitudeProcessed;
+  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n")
+  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n")
+  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m \n")
+  sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n")
+  
+  //nextRocketState(flight_velocity < 0 && flight_time > minTimeToApogee);
 }
 
 void rocketDrogueShoot(){
+  //Next state variables
+  float minDrogueAltitude = 9500; //needs to be confirmed with structural
+  float minTimeApogeeToDrogue = 5; //needs to be confirmed with structural
   
+  //Read data from BMP
+  float pressure = 0;
+  float altitude = 0;
+  float temp = 0;
+  float time = 0;
+  readBMP(&pressure, &altitude, &temp, &time);
+  
+  //Process and store data
+  altitudeProcessed = dataAnalytics(altitude);
+  previousAltitude = altitudeProcessed;
+  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n")
+  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n")
+  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m \n")
+  sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n")
+  
+  //nextRocketState(flight_altitude < minDrogueAltitude && flight_time > minTimeApogeeToDrogue);
 }
 
 void rocketMainShoot(){
+  //Next state variables
+  float minAltToDeployMain = 2500; //needs to be confirmed with structural
+  float minTimeDrogueToMain = 5; //needs to be confirmed with structural
   
+  //Read data from BMP
+  float pressure = 0;
+  float altitude = 0;
+  float temp = 0;
+  float time = 0;
+  readBMP(&pressure, &altitude, &temp, &time);
+  
+  //Process and store data
+  altitudeProcessed = dataAnalytics(altitude);
+  previousAltitude = altitudeProcessed;
+  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n");
+  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n");
+  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m \n");
+  sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n");
+  
+  //nextRocketState(flight_altitude < minAltToDeployMain && flight_time > minTimeDrogueToMain);
 }
 
 void rocketLanded(){
+  //Read data from BMP
+  float pressure = 0;
+  float altitude = 0;
+  float temp = 0;
+  float time = 0;
+  readBMP(&pressure, &altitude, &temp, &time);
   
+  //Process and store data
+  altitudeProcessed = dataAnalytics(altitude);
+  previousAltitude = altitudeProcessed;
+  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n");
+  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n");
+  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m \n");
+  sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n");
 }
 
 //End of Rocket State-Specific functions --------------------
@@ -160,12 +233,30 @@ bool initializeSD() {
   }
 }
 
-float readBMP(float *pressure, float *altitude, float *temp)
+void readBMP(float *pressure, float *altitude, float *temp, float *time)
 {
   bmp.getTemperature(temp);
   bmp.getPressure(pressure);
+  *time = millis();
   *altitude = bmp.pressureToAltitude(seaLevel, pressure/100);
 }
+
+//Do we have a better way to store these rather than making them global? (used for dataAnalytics)
+float previousAltitude = 0;
+float previousVelocity = 0;
+float previousTime = 0;
+float omega = 0.4;
+
+float dataAnalytics(float altitude, float time) {
+  deltaTime = time - previousTime;
+  prediction = previousAltitude + deltaTime*previousVelocity;
+  
+  previousVelocity = (altitude - previousAltitude) / deltaTime;
+  
+  altitudeProcessed = ((1 - omega) * altitude) + (omega * prediction);
+  return altitudeProcessed;
+}
+
 
 //End of senosor functions ==============================================
 
