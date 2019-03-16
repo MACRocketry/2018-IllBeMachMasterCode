@@ -51,20 +51,25 @@ void nextRocketState(bool safeToTransition){
   if (safeToTransition){
     switch (currentState){
       case Init:
+        sd.writeBuffer("Init -> Preflight");
         currentState = Preflight;
         break;
       case Preflight:
+        sd.writeBuffer("Preflight -> Flight");
         launchTime = millis();
         currentState = Flight;
         break;
       case Flight:
+        sd.writeBuffer("Flight -> DrogueShoot");
         apogeeTime = millis();
         currentState = DrogueShoot;
         break;
       case DrogueShoot:
+        sd.writeBuffer("DrogueShoot -> MainShoot");
         currentState = MainShoot;
         break;
       case MainShoot:
+        sd.writeBuffer("MainShoot -> Landing");
         currentState = Landed;
         break;
     }  }
