@@ -19,13 +19,21 @@
 //Definitions
 #define seaLevel 1013.25 //hPa
 #define omega 0.4
-#define groundLvl = 90;  //McMaster height above sea level (m)
-#define minVelForLaunch = 20;  //occurs 0.5s after velocity (m/s)
-#define minTimeToApogee = 29; //apogee predicted at 31s (2s safety) (s)
-#define minDrogueAltitude = 5000;  //no cap on drogue?
-#define minTimeApogeeToDrogue = 2; //predicted to occur at 34s
-#define maxAltToDeployMain = 450;  //IREC rule
-#define minTimeApogeeToMain = 10;  //would reach descent vel -26m/s by this point from drogue
+#define groundLvl = 90  //McMaster height above sea level (m)
+#define minVelForLaunch 20  //occurs 0.5s after launch (m/s)
+#define minTimeToApogee 29 //apogee predicted at 31s (2s safety) (s)
+#define minDrogueAltitude 5000  //no cap on drogue?
+#define minTimeApogeeToDrogue 2 //predicted to occur at 34s
+#define maxAltToDeployMain 450  //IREC rule
+#define minTimeApogeeToMain 10  //would reach descent vel -26m/s by this point from drogue
+
+//Global Variable Declarations
+float launchTime = 0;
+float apogeeTime = 0;
+float previousAltitude = 0;
+float previousVelocity = 0;
+float previousTime = 0;
+float altitudeProcessed;
 
 //Start of Initialize Sensor Objects =====================================================================
 Adafruit_BMP085_Unified bmp;
@@ -99,15 +107,12 @@ void processRocketState(){
 }
 //End of Rocket State Machine functions --------------------
 
-//Global Variable Declarations
-float launchTime = 0;
-float apogeeTime = 0;
 
 //Start of Rocket State-Specific functions --------------------
 
 void rocketInit(){
-  SDcheck = initializeSD();
-  BMPcheck =  initialzizeBMP();
+  bool SDcheck = initializeSD();
+  bool BMPcheck =  initializeBMP();
   
   led.setStatusGPS(true);
   
@@ -117,8 +122,6 @@ void rocketInit(){
 }
 
 void rocketPreflight(){
-  //Next state variables
-  float groundLvl = 100; //Sea level in meters
   
   //Read data from BMP
   float pressure = 0;
@@ -128,7 +131,7 @@ void rocketPreflight(){
   readBMP(&pressure, &altitude, &temp, &time);
   
   //Process and store data
-  altitudeProcessed = dataAnalytics(altitude);
+  altitudeProcessed = dataAnalytics(altitude,time);
   previousAltitude = altitudeProcessed;
   sd.writeBuffer("Time: " + String(time, 4) + "s\n");
   sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa\n");
@@ -137,12 +140,10 @@ void rocketPreflight(){
   sd.writeBuffer("Temperature: " + String(temp, 4) + "C\n");
   
   led.setStatusBMP(altitude); //*********JAROD NEEDS TO LOOK*********
-  nextRocketState(altitude > groundLvl && previousVelocity >> minVelForLaunch);  //prevVel = 30 @ 0.50s after launch
+  nextRocketState(altitude > groundLvl && previousVelocity > minVelForLaunch);  //prevVel = 30 @ 0.50s after launch
 }
 
 void rocketFlight(){
-  //Next state variables
-  float minTimeToApogee = 100; //needs to be confirmed with structural
   
   //Read data from BMP
   float pressure = 0;
@@ -152,7 +153,7 @@ void rocketFlight(){
   readBMP(&pressure, &altitude, &temp, &time);
   
   //Process and store data
-  altitudeProcessed = dataAnalytics(altitude);
+  altitudeProcessed = dataAnalytics(altitude,time);
   previousAltitude = altitudeProcessed;
   sd.writeBuffer("Time: " + String(time, 4) + "s\n");
   sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa\n");
@@ -164,9 +165,6 @@ void rocketFlight(){
 }
 
 void rocketDrogueShoot(){
-  //Next state variables
-  float minDrogueAltitude = 9500; //needs to be confirmed with structural
-  float minTimeApogeeToDrogue = 5; //needs to be confirmed with structural
   
   //Read data from BMP
   float pressure = 0;
@@ -176,7 +174,7 @@ void rocketDrogueShoot(){
   readBMP(&pressure, &altitude, &temp, &time);
   
   //Process and store data
-  altitudeProcessed = dataAnalytics(altitude);
+  altitudeProcessed = dataAnalytics(altitude,time);
   previousAltitude = altitudeProcessed;
   sd.writeBuffer("Time: " + String(time, 4) + "s\n");
   sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa\n");
@@ -188,9 +186,6 @@ void rocketDrogueShoot(){
 }
 
 void rocketMainShoot(){
-  //Next state variables
-  float minAltToDeployMain = 2500; //needs to be confirmed with structural
-  float minTimeDrogueToMain = 5; //needs to be confirmed with structural
   
   //Read data from BMP
   float pressure = 0;
@@ -200,7 +195,7 @@ void rocketMainShoot(){
   readBMP(&pressure, &altitude, &temp, &time);
   
   //Process and store data
-  altitudeProcessed = dataAnalytics(altitude);
+  altitudeProcessed = dataAnalytics(altitude,time);
   previousAltitude = altitudeProcessed;
   sd.writeBuffer("Time: " + String(time, 4) + "s\n");
   sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa\n");
@@ -208,7 +203,7 @@ void rocketMainShoot(){
   sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m\n");
   sd.writeBuffer("Temperature: " + String(temp, 4) + "C\n");
   
-  nextRocketState(altitude < minAltToDeployMain && (time-apogeeTime) > minTimeApogeeToMain);
+  nextRocketState(altitude < maxAltToDeployMain && (time-apogeeTime) > minTimeApogeeToMain);
 }
 
 void rocketLanded(){
@@ -220,7 +215,7 @@ void rocketLanded(){
   readBMP(&pressure, &altitude, &temp, &time);
   
   //Process and store data
-  altitudeProcessed = dataAnalytics(altitude);
+  altitudeProcessed = dataAnalytics(altitude,time);
   previousAltitude = altitudeProcessed;
   sd.writeBuffer("Time: " + String(time, 4) + "s\n");
   sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa\n");
@@ -248,7 +243,7 @@ bool initializeSD() {
   //create a file and open
   //prep the SD card so that we do not have to continously open and close files
   //this should only run once
-  logger = MacRocketry_SD_Logger();
+  MacRocketry_SD_Logger logger;
   if(logger.connectFile == NULL)
   {
     Serial.println("Failed to open log file!");
@@ -264,21 +259,16 @@ void readBMP(float *pressure, float *altitude, float *temp, float *time)
   bmp.getTemperature(temp);
   bmp.getPressure(pressure);
   *time = millis();
-  *altitude = bmp.pressureToAltitude(seaLevel, pressure/100);
+  *altitude = bmp.pressureToAltitude((float)seaLevel, *pressure/100);
 }
 
-//Do we have a better way to store these rather than making them global? (used for dataAnalytics)
-float previousAltitude = 0;
-float previousVelocity = 0;
-float previousTime = 0;
-
 float dataAnalytics(float altitude, float time) {
-  deltaTime = time - previousTime;
-  prediction = previousAltitude + deltaTime*previousVelocity;
+  float deltaTime = (float)(time - previousTime);
+  float prediction = previousAltitude + deltaTime*previousVelocity;
   
   previousVelocity = (altitude - previousAltitude) / deltaTime;
   
-  altitudeProcessed = ((1 - omega) * altitude) + (omega * prediction);
+  float altitudeProcessed = ((1 - omega) * altitude) + (omega * prediction);
   return altitudeProcessed;
 }
 
