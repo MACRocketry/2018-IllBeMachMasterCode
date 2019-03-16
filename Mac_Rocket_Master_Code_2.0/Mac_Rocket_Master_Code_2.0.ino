@@ -18,6 +18,14 @@
 //End of Import libraries ================================================================================
 //Definitions
 #define seaLevel 1013.25 //hPa
+#define omega 0.4
+#define groundLvl = 90;  //McMaster height above sea level (m)
+#define minVelForLaunch = 20;  //occurs 0.5s after velocity (m/s)
+#define minTimeToApogee = 29; //apogee predicted at 31s (2s safety) (s)
+#define minDrogueAltitude = 5000;  //no cap on drogue?
+#define minTimeApogeeToDrogue = 2; //predicted to occur at 34s
+#define maxAltToDeployMain = 450;  //IREC rule
+#define minTimeApogeeToMain = 10;  //would reach descent vel -26m/s by this point from drogue
 
 //Start of Initialize Sensor Objects =====================================================================
 Adafruit_BMP085_Unified bmp;
@@ -46,9 +54,11 @@ void nextRocketState(bool safeToTransition){
         currentState = Preflight;
         break;
       case Preflight:
+        launchTime = millis();
         currentState = Flight;
         break;
       case Flight:
+        apogeeTime = millis();
         currentState = DrogueShoot;
         break;
       case DrogueShoot:
@@ -83,7 +93,13 @@ void processRocketState(){
   }
 }
 //End of Rocket State Machine functions --------------------
+
+//Global Variable Declarations
+float launchTime = 0;
+float apogeeTime = 0;
+
 //Start of Rocket State-Specific functions --------------------
+
 void rocketInit(){
   SDcheck = initializeSD();
   BMPcheck =  initialzizeBMP();
@@ -109,13 +125,14 @@ void rocketPreflight(){
   //Process and store data
   altitudeProcessed = dataAnalytics(altitude);
   previousAltitude = altitudeProcessed;
-  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n")
-  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n")
-  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m \n")
-  sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n")
+  sd.writeBuffer("Time: " + String(time, 4) + "s\n");
+  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa\n");
+  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m\n");
+  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m\n");
+  sd.writeBuffer("Temperature: " + String(temp, 4) + "C\n");
   
   led.setStatusBMP(altitude); //*********JAROD NEEDS TO LOOK*********
-  //nextRocketState(altitude > groundLvl && vel >> 0);
+  nextRocketState(altitude > groundLvl && previousVelocity >> minVelForLaunch);  //prevVel = 30 @ 0.50s after launch
 }
 
 void rocketFlight(){
@@ -132,12 +149,13 @@ void rocketFlight(){
   //Process and store data
   altitudeProcessed = dataAnalytics(altitude);
   previousAltitude = altitudeProcessed;
-  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n")
-  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n")
-  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m \n")
-  sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n")
+  sd.writeBuffer("Time: " + String(time, 4) + "s\n");
+  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa\n");
+  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m\n");
+  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m\n");
+  sd.writeBuffer("Temperature: " + String(temp, 4) + "C\n");
   
-  //nextRocketState(flight_velocity < 0 && flight_time > minTimeToApogee);
+  nextRocketState(previousVelocity < 0 && (time-launchTime)/1000 > minTimeToApogee);
 }
 
 void rocketDrogueShoot(){
@@ -155,12 +173,13 @@ void rocketDrogueShoot(){
   //Process and store data
   altitudeProcessed = dataAnalytics(altitude);
   previousAltitude = altitudeProcessed;
-  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n")
-  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n")
-  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m \n")
-  sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n")
+  sd.writeBuffer("Time: " + String(time, 4) + "s\n");
+  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa\n");
+  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m\n");
+  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m\n");
+  sd.writeBuffer("Temperature: " + String(temp, 4) + "C\n");
   
-  //nextRocketState(flight_altitude < minDrogueAltitude && flight_time > minTimeApogeeToDrogue);
+  nextRocketState(altitude < minDrogueAltitude && (time-apogeeTime) > minTimeApogeeToDrogue);
 }
 
 void rocketMainShoot(){
@@ -178,12 +197,13 @@ void rocketMainShoot(){
   //Process and store data
   altitudeProcessed = dataAnalytics(altitude);
   previousAltitude = altitudeProcessed;
-  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n");
-  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n");
-  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m \n");
-  sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n");
+  sd.writeBuffer("Time: " + String(time, 4) + "s\n");
+  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa\n");
+  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m\n");
+  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m\n");
+  sd.writeBuffer("Temperature: " + String(temp, 4) + "C\n");
   
-  //nextRocketState(flight_altitude < minAltToDeployMain && flight_time > minTimeDrogueToMain);
+  nextRocketState(altitude < minAltToDeployMain && (time-apogeeTime) > minTimeApogeeToMain);
 }
 
 void rocketLanded(){
@@ -197,10 +217,11 @@ void rocketLanded(){
   //Process and store data
   altitudeProcessed = dataAnalytics(altitude);
   previousAltitude = altitudeProcessed;
-  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa \n");
-  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m \n");
-  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m \n");
-  sd.writeBuffer("Temperature: " + String(temp, 4) + "C \n");
+  sd.writeBuffer("Time: " + String(time, 4) + "s\n");
+  sd.writeBuffer("Pressure: " + String(pressure, 4) + "hPa\n");
+  sd.writeBuffer("Altitude: " + String(altitude, 4) + "m\n");
+  sd.writeBuffer("Processed Altitude: " + String(altitudeProcessed, 4) + "m\n");
+  sd.writeBuffer("Temperature: " + String(temp, 4) + "C\n");
 }
 
 //End of Rocket State-Specific functions --------------------
@@ -245,7 +266,6 @@ void readBMP(float *pressure, float *altitude, float *temp, float *time)
 float previousAltitude = 0;
 float previousVelocity = 0;
 float previousTime = 0;
-float omega = 0.4;
 
 float dataAnalytics(float altitude, float time) {
   deltaTime = time - previousTime;
@@ -269,49 +289,4 @@ void setup(){
 void loop(){
   processRocketState();
 }
-
-
-/*  Here lies the conditional statements that need to be ported over
-
-#define MINh    5
-#define MAINh    8900
-
-#define MINt    60
-#define DROt    5
-#define MAXt    600
-
-#define NEGv    -5
-#define MINv    5
-
-
-void main() {
-    enum rocket_state {preflight, flight, drogue, main, landed};
-    enum rocket_state current_state;
-    float flight_altitude = 0;
-    float flight_velocity = 0;
-    float time = 0;
-
-    current_state = preflight;
-    switch (current_state) {
-        case preflight:
-            if (flight_altitude > MINh && flight_velocity > MINv)
-                current_state = flight;
-            break;
-        case flight:
-            if (flight_velocity < NEGv && flight_time > MINt)
-                current_state = drogue;
-            break;
-        case drogue:
-            if (flight_altitude < MAINh && flight_time > DROt)
-                current_state = main;
-            break;
-        case main:
-            if (flight_altitude < MINh && flight_time > MINv)
-                current_state = landed;
-            break;
-        case landed:
-            break;
-    }
-}
-*/
 
