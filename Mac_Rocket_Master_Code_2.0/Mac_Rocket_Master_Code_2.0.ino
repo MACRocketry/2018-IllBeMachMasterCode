@@ -94,8 +94,8 @@ void readSensorData(void){
     
     sd.writeBuffer( //log UNO calculated data
       "$UNO,t," + String(t[0]) +
-      "alt," + String(alt[0]) +
-      "vel," + String(vel[0]) +
+      ",alt," + String(alt[0]) +
+      ",vel," + String(vel[0]) +
       "\n");
       
   }
@@ -282,6 +282,8 @@ void rocketLanded(){
 //End of Rocket State Machine ============================================================================
 //Start of setup() and loop() ============================================================================
 void setup(){ //redundancy initialize all variables to safety
+  //initialize BMP
+  bmp.begin();
 
   //set all motor driver pin to low
   pinMode(drogueChutePin, OUTPUT);
@@ -299,7 +301,6 @@ void setup(){ //redundancy initialize all variables to safety
   altMainMax = 0;
   
   currentState = Init; //reset current state to Init
-
 }
 
 void loop(){
