@@ -25,15 +25,15 @@
 
 //Velocity constant
 #define velTakeOff (0.005) //meter per millisecond
-#define velDecentDrogue (-0.005) //meter per millisecond
-#define velDecentMain
+//#define velDecentDrogue (-0.005) //meter per millisecond
 
 //Timer constant
-#define minTimeToApogee_K (24000) //millisecond = 24 seconds to apogee
-#define minTimeToMain_K (120000) //milliseconds = 120 seconds to main
+#define minTimeToApogee_K (24000) //millisecond = 24 seconds from preflight to apogee
+#define minTimeToDrogue_K (2000) //milliseconds = 2 seconds from apogee to drogue
+#define minTimeToMain_K (10000) //milliseconds = 10 seconds from drogue to main
 
 //Altitude constant
-#define altMainMax_K (500) //meter
+#define altMainMax_K (450) //meter which main is allowed to deploy
 
 //Chute IO Pins ==============================
 #define drogueChutePin 3
@@ -53,7 +53,7 @@ float alt[2], vel[2]; //acc[1];
 float altGndLevel, altMainMax;
 
 uint32_t t[2];
-uint32_t timeZero, minTimeToApogee, minTimeToMain;
+uint32_t timeZero, minTimeToApogee, minTimeToDrogue, minTimeToMain;
 
 
 //Start of Data Acquisition functions --------------------
@@ -110,7 +110,6 @@ enum RocketState {
   Preflight,
   Flight,
   DrogueChute,
-  DrogueDecent,
   MainChute,
   Landed
 };
@@ -123,7 +122,7 @@ void nextRocketState(RocketState state){
     switch (currentState){
       case Init:
         sd.writeBuffer("@Preflight\n");
-        led.setRGB(255, 255, 255);
+        led.setRGB(0, 255, 0);
         delay(1500);
         currentState = Preflight;
         break;
@@ -138,13 +137,13 @@ void nextRocketState(RocketState state){
         currentState = DrogueChute;
         break;
       case DrogueChute:
-        sd.writeBuffer("@DrogueDecent\n");
-        led.setRGB(255, 165, 0);
-        currentState = DrogueDecent;
-        break;
-      case DrogueDecent:
         sd.writeBuffer("@MainChute\n");
+        led.setRGB(255, 165, 0);
         currentState = MainChute;
+        break;
+      case MainChute:
+        sd.writeBuffer("@Landed\n");
+        currentState = Landed;
         break;
     }
   }
@@ -166,11 +165,11 @@ void processRocketState(){
     case DrogueChute:
       rocketDrogueChute();
       break;
-    case DrogueDecent:
-      rocketDrogueDecent();
-      break;
     case MainChute:
       rocketMainChute();
+      break;
+    case Landed:
+      rocketLanded();
       break;
   }
 }
@@ -205,22 +204,18 @@ void rocketInit(){ //initialize all variables to zero
 void rocketPreflight(){
   altGndLevel = ( altGndLevel*0.8 ) + ( alt[1]*0.2 ); //weighted average altitude
   sd.writeBuffer( //log UNO calculated data
-      "$UNO,altGND," + String(altGndLevel) +
+      "$Pre,altGND," + String(altGndLevel) +
       "\n");
   
   if ( //if all prev and curr vel is greater than velTakeOff
-    (velTakeOff < vel[1]) &&
-    (velTakeOff < vel[0])
+    (velTakeOff <= vel[1]) &&
+    (velTakeOff <= vel[0])
   ){ //then rocket is in flight
-    timeZero = millis();
-    minTimeToApogee =  timeZero + minTimeToApogee_K;
-    minTimeToMain = timeZero + minTimeToMain_K;
-    altMainMax = altGndLevel + altMainMax_K;
+    minTimeToApogee =  millis() + minTimeToApogee_K; //set ~24s to reach apogee
+    altMainMax = altGndLevel + altMainMax_K; //set IREC 450m
     
     sd.writeBuffer( //log UNO calculated data
       "$Pre,tApogee," + String(minTimeToApogee) +
-      "$tMain," + String(minTimeToApogee) +
-      "$altMain," + String(altMainMax) +
       "\n");
     
     nextRocketState(Preflight);
@@ -228,42 +223,58 @@ void rocketPreflight(){
 }
 
 void rocketFlight(){
-  //ONLY check if apogee timer is reached
+  //ONLY check if apogee timer is reached and altitude decrease
   //does NOT detonate Drogue Chute
-  if (minTimeToApogee < millis()){
-    sd.writeBuffer("Time to Apogee\n");
+  if (
+    (minTimeToApogee < millis()) &&   //if minTimeToApogee elapsed
+    ((alt[0] - alt[1]) <= 0)          //altitude decrease, apogee reached
+  ){ //then reached apogee
+    minTimeToDrogue =  millis() + minTimeToDrogue_K; //set ~2s to deploy Drogue
+
+    sd.writeBuffer( //log UNO calculated data
+      "$Flight,tDrogue," + String(minTimeToDrogue) +
+      "\n");
+    
     nextRocketState(Flight);
   }
 }
 
 void rocketDrogueChute(){
-  if ( //if all prev vel is more negative than velDecentDrogue
-    (vel[1] < velDecentDrogue) &&
-    (vel[0] < velDecentDrogue)
-  ){ //then detonate Drogue Chute
-    sd.writeBuffer("Negative Drogue\n");
-    digitalWrite(drogueChutePin, HIGH);
+  if ( //wait for ~2 seconds, then detonate DrogueChute
+    (minTimeToDrogue < millis())  //if minTimeToDrogue elapsed
+  ){
+    minTimeToMain =  millis() + minTimeToMain_K; //set ~10s to deploy Main
+    
+    sd.writeBuffer( //log UNO calculated data
+      "$Drogue,tMain," + String(minTimeToDrogue) +
+      "\n");
+    
+    digitalWrite(drogueChutePin, HIGH); //detonate Drogue
     nextRocketState(DrogueChute);
   }
 }
 
-void rocketDrogueDecent(){
-  //ONLY decent with drogue down to safe altitude
-  //does NOT detonate Main Chute
-  if (minTimeToMain < millis()){
-    sd.writeBuffer("Time to Main\n");
-    nextRocketState(DrogueDecent);
+void rocketMainChute(){
+  if ( //wait for ~10 seconds and altitude is below IREC 450m
+    (minTimeToMain < millis()) &&   //if minTimeToMain elapsed
+    (alt[1] <= altMainMax) &&        //if both altitude is below IREC 405m
+    (alt[0] <= altMainMax)
+  ){ //then detonate Main Chute
+    sd.writeBuffer( //log UNO calculated data
+      "$Main," + String(millis()) +
+      "\n");
+    
+    digitalWrite(mainChutePin, HIGH);
+    nextRocketState(MainChute);
   }
 }
 
-void rocketMainChute(){
-  if ( //if prev and curr alt is less than maxMainAlt
-    (alt[1] < altMainMax) &&
-    (alt[0] < altMainMax)
-  ){ //then detonate Main Chute
-    sd.writeBuffer("Main Altitude\n");
-    digitalWrite(mainChutePin, HIGH);
-    nextRocketState(MainChute);
+void rocketLanded(){
+  if ( //if altitude change is within 3m
+    ((alt[0] - alt[1]) <= 3)
+  ){
+    sd.writeBuffer( //log UNO calculated data
+      "$Landed\n");
   }
 }
 
@@ -281,7 +292,10 @@ void setup(){ //redundancy initialize all variables to safety
   //set minTimeToAll to very large value for safety
   timeZero = 3600000; //set min time to 1 hour
   minTimeToApogee = 3600000; //set min time to 1 hour
+  minTimeToDrogue = 3600000; //set min time to 1 hour
   minTimeToMain = 3600000; //set min time to 1 hour
+
+  //set altMainMax to very low for safety
   altMainMax = 0;
   
   currentState = Init; //reset current state to Init
